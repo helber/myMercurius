@@ -11,11 +11,28 @@ import (
 	"github.com/helber/myMercurius/handler"
 	"github.com/helber/myMercurius/lib/cache"
 	"github.com/helber/myMercurius/lib/contx"
-	"github.com/helber/myMercurius/lib/template"
 	"github.com/helber/myMercurius/lib/cors"
-	"gopkg.in/macaron.v1"
+	"github.com/helber/myMercurius/lib/template"
 	"github.com/prometheus/client_golang/prometheus"
+	"gopkg.in/macaron.v1"
 )
+
+//Include this struct after import session
+type Teste struct {
+	Status string
+}
+
+var (
+	counter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "http_visit_root",
+		Help: "Conter request on /",
+	})
+)
+
+func init() {
+	prometheus.MustRegister(counter)
+	counter.Add(1)
+}
 
 //SetupMiddlewares configures the middlewares using in each web request
 func SetupMiddlewares(app *macaron.Macaron) {
@@ -38,22 +55,22 @@ func SetupMiddlewares(app *macaron.Macaron) {
 		Funcs:     template.FuncMaps(),
 	}))
 	app.Use(macaron.Renderer(macaron.RenderOptions{
-    	Directory: "public/templates",
-    	Funcs:     template.FuncMaps(),
-    }))
+		Directory: "public/templates",
+		Funcs:     template.FuncMaps(),
+	}))
 	//Cache in memory
 	app.Use(mcache.Cacher(
 		cache.Option(conf.Cfg.Section("").Key("cache_adapter").Value()),
 	))
 	/*
-	Redis Cache
-	Add this lib to import session: _ "github.com/go-macaron/cache/redis"
-	Later replaces the cache in memory instructions for the lines below
-	optCache := mcache.Options{
-			Adapter:       conf.Cfg.Section("").Key("cache_adapter").Value(),
-			AdapterConfig: conf.Cfg.Section("").Key("cache_adapter_config").Value(),
-		}
-	app.Use(mcache.Cacher(optCache))
+		Redis Cache
+		Add this lib to import session: _ "github.com/go-macaron/cache/redis"
+		Later replaces the cache in memory instructions for the lines below
+		optCache := mcache.Options{
+				Adapter:       conf.Cfg.Section("").Key("cache_adapter").Value(),
+				AdapterConfig: conf.Cfg.Section("").Key("cache_adapter_config").Value(),
+			}
+		app.Use(mcache.Cacher(optCache))
 	*/
 	app.Use(session.Sessioner())
 	app.Use(contx.Contexter())
@@ -71,31 +88,32 @@ func SetupRoutes(app *macaron.Macaron) {
 
 	//Prometheus metrics
 	app.Get("/metrics", prometheus.Handler())
-	
-	/*
-		//An example to test DB connection
-		app.Get("", func() string {
-			db, err := conf.GetDB()
-			if err != nil {
-				return err.Error()
-			}
-			err = db.Ping()
-			if err != nil {
-				return err.Error()
-			}
-			col, err := conf.GetMongoCollection("teste")
-			if err != nil {
-				return err.Error()
-			}
-			defer col.Database.Session.Close()
-			teste := Teste{Status: "OK"}
-			err = col.Insert(teste)
-			return "Mercurius Works!"
-		})
 
-		//Include this struct after import session
-		type Teste struct {
-			Status string
+	// Inc
+	app.Get("/inc", func() string {
+		counter.Inc()
+		// log.Println(counter)
+		return "+"
+	})
+
+	//An example to test DB connection
+	app.Get("/", func() string {
+		db, err := conf.GetDB()
+		if err != nil {
+			return err.Error()
 		}
-	*/
+		err = db.Ping()
+		if err != nil {
+			return err.Error()
+		}
+		col, err := conf.GetMongoCollection("teste")
+		if err != nil {
+			return err.Error()
+		}
+		defer col.Database.Session.Close()
+		teste := Teste{Status: "OK"}
+		err = col.Insert(teste)
+		return "Mercurius Works!"
+	})
+
 }
